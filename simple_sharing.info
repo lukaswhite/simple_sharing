@@ -1,0 +1,4 @@
+name = Social
+description = "Provides a couple of blocks for social links (Facebook, Twitter, E-mail)"
+package = Misc
+core = 7.x

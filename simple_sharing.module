@@ -1,0 +1,240 @@
+<?php
+/**
+ * Implements hook_menu().
+ */
+function simple_sharing_menu()
+{
+  $items = array();
+
+  $items['admin/config/search/simple-sharing'] = array(  // "search" is mis-leading, it's actually "search amd metadata"
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('simple_sharing_config_form'),
+    'file' => 'simple_sharing.admin.inc',
+    'title' => t('Simple Sharing'),    
+    'access arguments' => array('administer site configuration'),
+  );
+
+  return $items;  
+}
+
+/**
+ * Implements of hook_theme()
+ */
+function simple_sharing_theme() {
+  return array(
+    'simple_sharing' => array(      
+      'template' => 'theme/simple-sharing',
+      'variables' => array(
+        'links'     =>  array(),
+        'classes'   =>  null,
+      ),
+    ),
+  );
+}
+
+
+/**
+ * Implements hook_node_view()
+ */
+function simple_sharing_node_view($node, $view_mode, $langcode) {
+
+
+
+  // Get the list of types for which we want to include the widget
+  $types = variable_get('simple_sharing_node_types', array());
+
+  // Get the list of view modes for which we want to include the widget
+  $view_modes = variable_get('simple_sharing_view_modes', array());
+
+  // Check that the node type AND its view mode is appropriate
+  if ( 
+    ( isset($types[$node->type]) ) && 
+    ( $types[$node->type] ) &&
+    ( isset($view_modes[$view_mode]) ) && 
+    ( $view_modes[$view_mode] ) 
+  ) {
+
+    
+    
+    $links = array(
+      '#theme'        =>  'links',
+      '#links'        =>  _simple_sharing_get_links($node),
+      '#attributes'   =>  array(
+        'class' =>  variable_get('simple_sharing_list_classes', 'social simple-sharing-list list-inline'),
+      ),
+    );
+
+    if (strlen(variable_get('simple_sharing_caption_text', t('Share this Post')))) {
+
+      if (module_exists('token')) {
+        $text = token_replace(variable_get('simple_sharing_caption_text', t('Share this Post')), array('node' => $node));
+      } else {
+        $text = variable_get('simple_sharing_caption_text', t('Share this Post'));
+      }
+
+      $links['#heading'] = array(
+        'text'    =>  $text,
+        'level'   =>  variable_get('simple_sharing_caption_level', 'h2'),
+      );
+
+    }
+  
+    $node->content['simple_sharing'] = array(
+      '#weight'   =>  50,
+      '#theme'    =>  'simple_sharing',
+      '#links'    =>  $links,
+      '#classes'  =>  variable_get('simple_sharing_outer_classes', 'simple-sharing'),
+    );
+
+  }
+
+}
+
+/**
+ * Returns an array of simple sharing links for a given node.
+ * 
+ * @param  stdClass   $node  The node in question
+ * @return array    An (render) array of links, ready to be themed via theme_links()
+ */
+function _simple_sharing_get_links($node) {
+
+  $node_full_url = url(sprintf('node/%d', $node->nid), array('absolute' => TRUE));
+
+  $links = array();
+
+  $link_attributes = array();
+
+  if ( strlen(variable_get('simple_sharing_link_target', '') ) ) {
+    $link_attributes['target'] = variable_get('simple_sharing_link_target');
+  }
+
+  if (variable_get('simple_sharing_show_facebook', TRUE)) {
+
+    $links[] = array(
+      'attributes'  =>  $link_attributes + array(
+        'class'       =>  'facebook',
+      ),
+      'title'       =>  'Facebook',
+      'href'        =>  sprintf('https://www.facebook.com/sharer.php?u=%s&amp;t=%s', $node_full_url, $node->title),
+    );
+
+  }
+
+  if (variable_get('simple_sharing_show_twitter', TRUE)) {
+
+    $links[] = array(
+      'attributes'  =>  $link_attributes + array(
+        'class'       =>  'twitter',
+      ),
+      'title'       =>  'Twitter',
+      'href'        =>  sprintf('https://twitter.com/home?status=%s %s', $node_full_url, $node->title),
+    );
+    
+  }
+
+  if (variable_get('simple_sharing_show_googleplus', FALSE)) {
+    
+    $links[] = array(
+      'attributes'  =>  $link_attributes + array(
+        'class'       =>  'googleplus',
+      ),
+      'title'       =>  'Google+',
+      'href'        =>  sprintf('http://google.com/bookmarks/mark?op=edit&amp;bkmk=%s&amp;title=%s ', $node_full_url, $node->title),
+    );
+
+  }
+
+  if (variable_get('simple_sharing_show_linkedin', FALSE)) {
+ 
+    $links[] = array(
+      'attributes'  =>  $link_attributes + array(
+        'class'       =>  'linkedin',
+      ),
+      'title'       =>  'LinkedIn',
+      'href'        =>  sprintf('https://www.linkedin.com/shareArticle?source=%s&title=%s&mini=true&url=%s', variable_get('site_name', 'Site name here'), $node->title, $node_full_url),
+    );
+
+  }
+
+  if (variable_get('simple_sharing_show_pinterest', FALSE)) {
+    
+    $links[] = array(
+      'attributes'  =>  $link_attributes + array(
+        'class'           =>  'pinterest',
+        'data-pin-config' =>  'above',
+        'data-pin-do'     =>  'buttonPin',
+      ),
+      'title'       =>  'Pinterest',
+      'href'        =>  sprintf('//pinterest.com/pin/create/button/?url=%s&amp;description=%s', $node_full_url, $node->title),
+    );
+
+  }
+
+  if (variable_get('simple_sharing_show_email', FALSE)) {
+    
+    switch (variable_get('simple_sharing_email_type', 'custom')) {
+
+      case 'forward':
+
+        $links[] = array(
+          'attributes'  =>  array(  // ignore default attributes, this should open in new window
+            'class'       =>  'email',                
+          ),
+          'query'   =>  array(
+            'path'    =>  sprintf('node/%d', $node->nid),
+          ),      
+          'title'       =>  t('Share via E-mail'),
+          'href'        =>  'forward',
+        );
+
+        break;
+
+      case 'print':
+
+        $links[] = array(
+          'attributes'  =>  array(  // ignore default attributes, this should open in new window
+            'class'       =>  'email',                
+          ),          
+          'title'       =>  t('Share via E-mail'),
+          'href'        =>  sprinf('printmail/%d', $node->nid),
+        );
+
+        break;
+
+      case 'mailto':
+
+        $links[] = array(
+          'attributes'  =>  $link_attributes + array(
+            'class'       =>  'email',
+          ),
+          'title'       =>  t('Share via E-mail'),
+          'href'        =>  sprintf('mailto:?body=%s&subject=%s', $node_full_url, $node->title),
+        );
+
+        break;
+
+      case 'custom':
+
+        if (module_exists('token')) {
+          $url = token_replace(variable_get('simple_sharing_email_custom_url', 'http://www.example.com?url=[node:url]&title=[node:title]'), array('node' => $node));  
+        } else {
+          $url = variable_get('simple_sharing_email_custom_url', 'http://www.example.com?url=[node:url]&title=[node:title]');
+        }
+        
+        $links[] = array(
+          'attributes'  =>  $link_attributes + array(
+            'class'       =>  'email',
+          ),
+          'title'       =>  t('Share via E-mail'),
+          'href'        =>  $url,
+        );
+
+        break;
+
+    }
+
+  }
+
+  return $links;
+
+}
